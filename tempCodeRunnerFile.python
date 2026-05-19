@@ -1,0 +1,166 @@
+import requests
+from datetime import datetime
+
+# APIs
+GEOCODE_URL = "https://nominatim.openstreetmap.org/search"
+WEATHER_URL = "https://api.open-meteo.com/v1/forecast"
+
+HEADERS = {
+    "User-Agent": "WeatherApp"
+}
+
+# Weather codes
+weather_codes = {
+    0: ("Clear Sky", "☀️"),
+    1: ("Mainly Clear", "🌤"),
+    2: ("Partly Cloudy", "⛅"),
+    3: ("Cloudy", "☁️"),
+    45: ("Fog", "🌫"),
+    61: ("Rain", "🌧"),
+    71: ("Snow", "❄️"),
+    95: ("Thunderstorm", "⛈")
+}
+
+
+# Get city latitude and longitude
+def geocode(city):
+
+    params = {
+        "q": city,
+        "format": "json",
+        "limit": 1
+    }
+
+    response = requests.get(
+        GEOCODE_URL,
+        params=params,
+        headers=HEADERS
+    )
+
+    data = response.json()
+
+    if not data:
+        return None
+
+    lat = data[0]["lat"]
+    lon = data[0]["lon"]
+    name = data[0]["display_name"]
+
+    return lat, lon, name
+
+
+# Get weather
+def fetch_weather(lat, lon):
+
+    params = {
+        "latitude": lat,
+        "longitude": lon,
+
+        "current": [
+            "temperature_2m",
+            "relative_humidity_2m",
+            "apparent_temperature",
+            "wind_speed_10m",
+            "weather_code"
+        ],
+
+        "daily": [
+            "temperature_2m_max",
+            "temperature_2m_min",
+            "weather_code"
+        ],
+
+        "timezone": "auto",
+        "forecast_days": 5
+    }
+
+    response = requests.get(
+        WEATHER_URL,
+        params=params
+    )
+
+    return response.json()
+
+
+# Show weather
+def display_weather(city_name, data):
+
+    current = data["current"]
+    daily = data["daily"]
+
+    code = current["weather_code"]
+
+    label, emoji = weather_codes.get(
+        code,
+        ("Unknown", "🌡")
+    )
+
+    print("\n==============================")
+    print(f"{emoji} Weather for {city_name}")
+    print("==============================")
+
+    print(f"Condition : {label}")
+    print(f"Temperature : {current['temperature_2m']}°C")
+    print(f"Feels Like : {current['apparent_temperature']}°C")
+    print(f"Humidity : {current['relative_humidity_2m']}%")
+    print(f"Wind Speed : {current['wind_speed_10m']} km/h")
+
+    print("\n5 Day Forecast")
+    print("---------------------------")
+
+    dates = daily["time"]
+    max_temp = daily["temperature_2m_max"]
+    min_temp = daily["temperature_2m_min"]
+    codes = daily["weather_code"]
+
+    for i in range(len(dates)):
+
+        day = datetime.strptime(
+            dates[i],
+            "%Y-%m-%d"
+        ).strftime("%A")
+
+        label, emoji = weather_codes.get(
+            codes[i],
+            ("Unknown", "🌡")
+        )
+
+        print(
+            f"{emoji} {day}"
+            f" | Max: {max_temp[i]}°C"
+            f" | Min: {min_temp[i]}°C"
+            f" | {label}"
+        )
+
+    print()
+
+
+# Main program
+while True:
+
+    city = input(
+        "\nEnter city name (or quit): "
+    )
+
+    if city.lower() == "quit":
+        print("Goodbye 👋")
+        break
+
+    try:
+
+        location = geocode(city)
+
+        if location is None:
+            print("City not found")
+            continue
+
+        lat, lon, city_name = location
+
+        print("Fetching weather...")
+
+        weather_data = fetch_weather(lat, lon)
+
+        display_weather(city_name, weather_data)
+
+    except Exception as e:
+        print("Error:", e)
